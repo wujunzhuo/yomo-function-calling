@@ -33,7 +33,7 @@ func Handler(ctx serverless.Context) {
 	r := rand.New(rand.NewSource(int64(msg.Seed)))
 	num := r.Intn(msg.Range[1] - msg.Range[0])
 
-	ctx.Write(0x30, []byte(fmt.Sprintf("OK: generated new number [%d]", num)))
+	ctx.Write(0x30, []byte(fmt.Sprintf("ok: generated new number [%d]", num)))
 }
 
 func main() {
