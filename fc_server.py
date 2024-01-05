@@ -71,26 +71,23 @@ def send_to_yomo(tag: int, payload: str) -> None:
     subprocess.run([SOURCE_EXEC_PATH, str(tag), payload])
 
 
-def run_function(name: str, arguments: str) -> str:
+def parse_tag_and_payload(name: str, arguments: str) -> str:
     def tool_call(**kwargs):
         return json.dumps(kwargs)
 
     tag = FUNCTION_TAGS.get(name)
     if tag is None:
-        return f"Function `{name}` is not defined"
+        raise ValueError(f"Function `{name}` is not defined")
 
-    try:
-        payload = eval(arguments, dict(tool_call=tool_call))
-    except Exception:
-        send_to_yomo(SINK_TAG, f"error: Invalid arguments {arguments}")
+    payload = eval(arguments, dict(tool_call=tool_call))
 
-    send_to_yomo(tag, payload)
+    return tag, payload
 
 
 pipeline = chatglm_cpp.Pipeline(MODEL_PATH)
 
 
-def run(prompt: str):
+def run_llm(prompt: str):
     prompt = prompt.strip()
 
     messages = [
@@ -116,19 +113,11 @@ def run(prompt: str):
         response += chunk.content
         chunks.append(chunk)
 
-    reply_message = Message.from_cpp(
-        pipeline.merge_streaming_messages(chunks))
+    reply_message = Message.from_cpp(pipeline.merge_streaming_messages(chunks))
     if not reply_message.tool_calls:
         return
 
-    (tool_call,) = reply_message.tool_calls
-    if tool_call.type == "function":
-        print('name:', tool_call.function.name)
-        print('arguments:', tool_call.function.arguments)
-        run_function(tool_call.function.name, tool_call.function.arguments)
-    else:
-        send_to_yomo(
-            SINK_TAG, f"error: Unexpected tool call type {tool_call.type}")
+    return reply_message.tool_calls[0]
 
 
 app = FastAPI()
@@ -140,8 +129,24 @@ class Request(BaseModel):
 
 @app.post("/")
 async def api(req: Request):
-    run(req.prompt)
-    return {"Msg": "OK"}
+    tool_call = run_llm(req.prompt)
+    if tool_call is None:
+        return {"msg": "error: This prompt cannot be recognized as a function"}
+
+    if tool_call.type == "function":
+        try:
+            tag, payload = parse_tag_and_payload(
+                tool_call.function.name, tool_call.function.arguments)
+            send_to_yomo(tag, payload)
+            return {
+                "msg": "ok",
+                "tag": tag,
+                "payload": payload
+            }
+        except Exception as e:
+            return {"msg": "error: " + str(e)}
+    else:
+        return {"msg": f"error: Unexpected tool call type {tool_call.type}"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=2880)

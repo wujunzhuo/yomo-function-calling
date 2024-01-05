@@ -55,4 +55,11 @@ go run main.go
 
 ```sh
 curl -H "Content-type: application/json" -d '{"prompt":"北京的天气怎么样？"}' http://localhost:2880
+# {"msg":"ok","tag":50,"payload":"{\"city_name\": \"\\u5317\\u4eac\"}"}
+
+curl -H "Content-type: application/json" -d '{"prompt":"请生成一个10到50之间的随机数，随机数种子为2023"}' http://localhost:2880
+# {"msg":"ok","tag":49,"payload":"{\"seed\": 2023, \"range\": [10, 50]}"}
+
+curl -H "Content-type: application/json" -d '{"prompt":"你叫什么名字？"}' http://localhost:2880
+# {"msg":"error: This prompt cannot be recognized as a function"}
 ```

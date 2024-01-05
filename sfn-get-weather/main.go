@@ -29,7 +29,7 @@ func Handler(ctx serverless.Context) {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	temprature := r.Intn(30)
 
-	res := fmt.Sprintf("ok: the temprature of %s is %d", msg.CityName, temprature)
+	res := fmt.Sprintf("ok: current temperature of %s is %d°C", msg.CityName, temprature)
 	ctx.Write(0x30, []byte(res))
 }
 
