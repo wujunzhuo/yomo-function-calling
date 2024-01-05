@@ -8,48 +8,17 @@ import chatglm_cpp
 import uvicorn
 
 MODEL_PATH = "./chatglm3-ggml.bin"
+FUNCTIONS_DESC_PATH = "./function_desc.json"
+FUNCTION_TAG_PATH = "./function_tag.json"
 SOURCE_EXEC_PATH = "./source_exec"
 
-SINK_TAG = 0x30
 
-FUNCTION_TAGS = {
-    "random_number_generator": 0x31,
-    "get_weather": 0x32,
-}
+with open(FUNCTIONS_DESC_PATH, "r") as f:
+    SYSTEM_PROMPT = "Answer the following questions as best as you can. \
+You have access to the following tools:\n" + f.read()
 
-
-TOOLS = [
-    {
-        "name": "random_number_generator",
-        "description": "Generates a random number x, s.t. range[0] <= x < range[1]",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "seed": {"description": "The random seed used by the generator", "type": "integer"},
-                "range": {
-                    "description": "The range of the generated numbers",
-                    "type": "array",
-                    "items": [{"type": "integer"}, {"type": "integer"}],
-                },
-            },
-            "required": ["seed", "range"],
-        },
-    },
-    {
-        "name": "get_weather",
-        "description": "Get the current weather for `city_name`",
-        "parameters": {
-            "type": "object",
-            "properties": {"city_name": {"description": "The name of the city to be queried", "type": "string"}},
-            "required": ["city_name"],
-        },
-    },
-]
-
-SYSTEM_PROMPT = (
-    "Answer the following questions as best as you can. You have access to the following tools:\n"
-    + json.dumps(TOOLS, indent=4)
-)
+with open(FUNCTION_TAG_PATH, 'r') as f:
+    FUNCTION_TAGS = json.load(f)
 
 
 class Message(chatglm_cpp.ChatMessage):
