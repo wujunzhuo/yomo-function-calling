@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import logging
 import subprocess
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -121,6 +122,7 @@ def run_llm(prompt: str):
 
 
 app = FastAPI()
+logger = logging.getLogger("uvicorn")
 
 
 class Request(BaseModel):
@@ -129,15 +131,15 @@ class Request(BaseModel):
 
 @app.post("/")
 async def api(req: Request):
-    print("prompt: ", req.prompt)
+    logger.info(f"prompt: {req.prompt}")
     tool_call = run_llm(req.prompt)
     if tool_call is None:
         return {"msg": "error: This prompt cannot be recognized as a function"}
 
     if tool_call.type == "function":
         try:
-            print("function: ", tool_call.function.name)
-            print("arguments: ", tool_call.function.arguments)
+            logger.info(f"function: {tool_call.function.name}")
+            logger.info(f"arguments: {tool_call.function.arguments}")
             tag, payload = parse_tag_and_payload(
                 tool_call.function.name, tool_call.function.arguments)
             send_to_yomo(tag, payload)

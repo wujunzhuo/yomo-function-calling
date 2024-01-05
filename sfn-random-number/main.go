@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"time"
 
 	"github.com/yomorun/yomo"
 	"github.com/yomorun/yomo/serverless"
@@ -30,10 +31,14 @@ func Handler(ctx serverless.Context) {
 		return
 	}
 
-	r := rand.New(rand.NewSource(int64(msg.Seed)))
+	seed := int64(msg.Seed)
+	if seed == 0 {
+		seed = time.Now().UnixNano()
+	}
+	r := rand.New(rand.NewSource(seed))
 	num := r.Intn(msg.Range[1]-msg.Range[0]) + msg.Range[0]
 
-	res := fmt.Sprintf("ok: generated %d (seed=%d, range=%d~%d)", num, msg.Seed, msg.Range[0], msg.Range[1])
+	res := fmt.Sprintf("ok: generated %d (seed=%d, range=%d~%d)", num, seed, msg.Range[0], msg.Range[1])
 	ctx.Write(0x30, []byte(res))
 }
 
