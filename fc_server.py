@@ -1,21 +1,39 @@
 from __future__ import annotations
 import json
 import logging
+import os
 import subprocess
 from fastapi import FastAPI
 from pydantic import BaseModel
+from openai import AzureOpenAI
 import chatglm_cpp
 import uvicorn
 
-MODEL_PATH = "./chatglm3-ggml.bin"
-FUNCTIONS_DESC_PATH = "./function_desc.json"
+CHATGLM_MODEL_PATH = "./chatglm3-ggml.bin"
+
+AZURE_OPENAI_ENDPOINT = "https://c3y.openai.azure.com/"
+AZURE_OPENAI_MODEL = "gpt35"
+AZURE_OPENAI_VERSION = "2023-12-01-preview"
+AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_KEY")
+
+if AZURE_OPENAI_KEY:
+    azure_openai_client = AzureOpenAI(
+        azure_endpoint=AZURE_OPENAI_ENDPOINT,
+        api_key=AZURE_OPENAI_KEY,
+        api_version=AZURE_OPENAI_VERSION,
+    )
+    chatglm_pipeline = None
+else:
+    azure_openai_client = None
+    chatglm_pipeline = chatglm_cpp.Pipeline(CHATGLM_MODEL_PATH)
+
+
+FUNCTION_DESC_PATH = "./function_desc.json"
 FUNCTION_TAG_PATH = "./function_tag.json"
 SOURCE_EXEC_PATH = "./source_exec"
 
-
-with open(FUNCTIONS_DESC_PATH, "r") as f:
-    SYSTEM_PROMPT = "Answer the following questions as best as you can. \
-You have access to the following tools:\n" + f.read()
+with open(FUNCTION_DESC_PATH, "r") as f:
+    FUNCTION_DESC = json.load(f)
 
 with open(FUNCTION_TAG_PATH, 'r') as f:
     FUNCTION_TAGS = json.load(f)
@@ -49,19 +67,43 @@ def parse_tag_and_payload(name: str, arguments: str) -> str:
     if tag is None:
         raise ValueError(f"Function `{name}` is not defined")
 
-    payload = eval(arguments, dict(tool_call=tool_call))
+    try:
+        json.loads(arguments)
+        payload = arguments
+    except json.JSONDecodeError:
+        payload = eval(arguments, dict(tool_call=tool_call))
 
     return tag, payload
-
-
-pipeline = chatglm_cpp.Pipeline(MODEL_PATH)
 
 
 def run_llm(prompt: str):
     prompt = prompt.strip()
 
+    if azure_openai_client:
+        return run_azure_openai(azure_openai_client, prompt)
+    else:
+        return run_chatglm_model(chatglm_pipeline, prompt)
+
+
+def run_azure_openai(client: AzureOpenAI, prompt: str):
+    response = client.chat.completions.create(
+        model=AZURE_OPENAI_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        tools=[{"type": "function", "function": x} for x in FUNCTION_DESC],
+        tool_choice="auto",
+    )
+    response_message = response.choices[0].message
+    if response_message.tool_calls:
+        return response_message.tool_calls[0]
+
+
+def run_chatglm_model(pipeline: chatglm_cpp.Pipeline, prompt: str):
+    system_prompt = "Answer the following questions as best as you can. \
+You have access to the following tools:\n" \
+    + json.dumps(FUNCTION_DESC, indent=4)
+
     messages = [
-        Message(role="system", content=SYSTEM_PROMPT),
+        Message(role="system", content=system_prompt),
         Message(role="user", content=prompt)
     ]
 
@@ -84,10 +126,8 @@ def run_llm(prompt: str):
         chunks.append(chunk)
 
     reply_message = Message.from_cpp(pipeline.merge_streaming_messages(chunks))
-    if not reply_message.tool_calls:
-        return
-
-    return reply_message.tool_calls[0]
+    if reply_message.tool_calls:
+        return reply_message.tool_calls[0]
 
 
 app = FastAPI()
