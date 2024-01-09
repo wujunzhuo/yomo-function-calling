@@ -11,12 +11,12 @@ import uvicorn
 
 CHATGLM_MODEL_PATH = "./chatglm3-ggml.bin"
 
-AZURE_OPENAI_ENDPOINT = "https://c3y.openai.azure.com/"
-AZURE_OPENAI_MODEL = "gpt35"
-AZURE_OPENAI_VERSION = "2023-12-01-preview"
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_KEY")
+AZURE_OPENAI_MODEL = os.getenv("AZURE_OPENAI_MODEL", "gpt35")
+AZURE_OPENAI_VERSION = os.getenv("AZURE_OPENAI_VERSION", "2023-12-01-preview")
 
-if AZURE_OPENAI_KEY:
+if AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_KEY:
     azure_openai_client = AzureOpenAI(
         azure_endpoint=AZURE_OPENAI_ENDPOINT,
         api_key=AZURE_OPENAI_KEY,

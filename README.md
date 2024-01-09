@@ -9,6 +9,7 @@ curl -o chatglm3-ggml.bin "https://www.modelscope.cn/api/v1/models/tiansz/chatgl
 Or
 
 ```sh
+export AZURE_OPENAI_ENDPOINT=https://c3y.openai.azure.com/
 export AZURE_OPENAI_KEY=******
 ```
 
